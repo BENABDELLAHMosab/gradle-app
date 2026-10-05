@@ -4,6 +4,7 @@ stages:
   - build
   - test
   - docker
+  - release
 
 build:
   stage: build
@@ -24,16 +25,50 @@ test:
 docker_latest:
   stage: docker
   image: docker:27-cli
-
   variables:
     BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
-
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop"'
-
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
-
   script:
     - docker build -t "$CI_REGISTRY_IMAGE:latest" .
     - docker push "$CI_REGISTRY_IMAGE:latest"
+
+validate_tag:
+  stage: docker
+  image: alpine:latest
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - |
+      echo "Tag reçu : $CI_COMMIT_TAG"
+      echo "$CI_COMMIT_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+        echo "Tag invalide. Format attendu : X.Y.Z"
+        exit 1
+      }
+
+docker_version:
+  stage: docker
+  image: docker:27-cli
+  variables:
+    BUILDX_NO_DEFAULT_ATTESTATIONS: "1"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/'
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker build --no-cache -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/'
+  script:
+    - echo "Création de la release $CI_COMMIT_TAG"
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    name: 'Release $CI_COMMIT_TAG'
+    description: 'Release automatique pour la version $CI_COMMIT_TAG'
