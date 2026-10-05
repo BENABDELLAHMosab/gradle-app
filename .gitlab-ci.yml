@@ -1,0 +1,17 @@
+image: gradle:8-jdk11
+
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  script:
+    - chmod +x gradlew
+    - ./gradlew assemble
+
+test:
+  stage: test
+  script:
+    - chmod +x gradlew
+    - ./gradlew test
