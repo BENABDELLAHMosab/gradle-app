@@ -3,15 +3,31 @@ image: gradle:8-jdk11
 stages:
   - build
   - test
+  - docker
 
 build:
   stage: build
   script:
     - chmod +x gradlew
     - ./gradlew assemble
+  artifacts:
+    paths:
+      - build/libs/
+    expire_in: 1 hour
 
 test:
   stage: test
   script:
     - chmod +x gradlew
     - ./gradlew test
+
+docker_latest:
+  stage: docker
+  image: docker:27-cli
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:latest" .
+    - docker push "$CI_REGISTRY_IMAGE:latest"
